@@ -26,6 +26,25 @@ from app.services.report_workflow import run_report_workflow
 router = APIRouter()
 
 
+def serialize_report(report: Report) -> dict:
+    content = report.content or {}
+    meta = content.get("__meta", {}) if isinstance(content, dict) else {}
+    progress = meta.get("progress") if isinstance(meta.get("progress"), int) else None
+    phase = meta.get("phase") if isinstance(meta.get("phase"), str) else None
+    status_message = meta.get("message") if isinstance(meta.get("message"), str) else None
+    return {
+        "report_id": report.report_id,
+        "status": report.status,
+        "title": report.title,
+        "content": report.content,
+        "created_at": report.created_at,
+        "is_bookmarked": report.is_bookmarked,
+        "progress": progress,
+        "phase": phase,
+        "status_message": status_message,
+    }
+
+
 async def generate_report_task(report_id: str, topic_id: str, custom_instructions: str) -> None:
     async with AsyncSessionLocal() as db:
         try:
@@ -140,7 +159,7 @@ async def get_report(
         raise HTTPException(status_code=404, detail="Report not found")
     if report.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
-    return report
+    return serialize_report(report)
 
 
 @router.patch("/{report_id}", response_model=ReportResponse)
@@ -161,7 +180,7 @@ async def update_report(
     db.add(report)
     await db.commit()
     await db.refresh(report)
-    return report
+    return serialize_report(report)
 
 
 @router.get("", response_model=List[ReportListResponse])

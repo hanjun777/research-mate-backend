@@ -26,6 +26,14 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
+## 커리큘럼 CSV 시드
+루트 경로의 `math_subjects_rows.csv`, `math_curriculum_rows.csv`를 DB에 적재합니다.
+```bash
+cd research-mate-backend
+source .venv/bin/activate
+python app/scripts/seed_curriculum.py
+```
+
 ## 필수 환경변수(.env)
 ```env
 PROJECT_NAME=Research-Mate

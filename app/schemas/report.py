@@ -18,6 +18,9 @@ class ReportResponse(BaseModel):
     content: Optional[Dict[str, Any]] = None
     created_at: datetime
     is_bookmarked: bool
+    progress: Optional[int] = None
+    phase: Optional[str] = None
+    status_message: Optional[str] = None
 
     class Config:
         from_attributes = True

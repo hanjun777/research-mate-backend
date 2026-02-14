@@ -1,0 +1,49 @@
+from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+
+class ReportGenerateRequest(BaseModel):
+    topic_id: str
+    custom_instructions: Optional[str] = None
+
+class ReportGenerateResponse(BaseModel):
+    report_id: str
+    status: str
+    estimated_time: int
+
+class ReportResponse(BaseModel):
+    report_id: str
+    status: str
+    title: str
+    content: Optional[Dict[str, Any]] = None
+    created_at: datetime
+    is_bookmarked: bool
+
+    class Config:
+        from_attributes = True
+
+class ReportListResponse(BaseModel):
+    report_id: str
+    title: str
+    subjects: Optional[List[str]] = None
+    created_at: datetime
+    status: str
+    is_bookmarked: bool
+
+    class Config:
+        from_attributes = True
+
+class BookmarkRequest(BaseModel):
+    is_bookmarked: bool
+
+
+class ReportChatRequest(BaseModel):
+    message: str
+
+
+class ReportChatResponse(BaseModel):
+    reply: str
+
+
+class ReportUpdateRequest(BaseModel):
+    content: Dict[str, Any]

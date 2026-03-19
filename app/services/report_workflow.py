@@ -118,15 +118,17 @@ async def _step_generate(state: ReportState, callback: Optional[ProgressCallback
 
 
 async def _step_critique(state: ReportState, callback: Optional[ProgressCallback] = None) -> ReportState:
-    await _emit_progress(callback, 80, "critique", "품질 점검 및 채점 중입니다.")
+    round_str = f"[{state.get('revision_count', 0) + 1}차] " if state.get("revision_count", 0) > 0 else ""
+    await _emit_progress(callback, 80, "critique", f"{round_str}품질 점검 및 채점 중입니다.")
     critique = await gemini_service.critique_report(state.get("report", {}), RUBRIC)
     state["critique"] = critique
-    await _emit_progress(callback, 86, "critique", "품질 점검을 완료했습니다.")
+    await _emit_progress(callback, 86, "critique", f"{round_str}품질 점검을 완료했습니다.")
     return state
 
 
 async def _step_rewrite(state: ReportState, callback: Optional[ProgressCallback] = None) -> ReportState:
-    await _emit_progress(callback, 90, "rewrite", "피드백 기반 재작성 라운드를 진행합니다.")
+    round_str = f"[{state.get('revision_count', 0) + 1}차] "
+    await _emit_progress(callback, 90, "rewrite", f"{round_str}피드백 기반 재작성 라운드를 진행합니다.")
     feedback = (state.get("critique") or {}).get("feedback", "")
     rewritten = await gemini_service.rewrite_report_with_feedback(
         report=state.get("report", {}),
@@ -135,7 +137,7 @@ async def _step_rewrite(state: ReportState, callback: Optional[ProgressCallback]
     )
     state["report"] = rewritten
     state["revision_count"] = state.get("revision_count", 0) + 1
-    await _emit_progress(callback, 94, "rewrite", "재작성 라운드를 완료했습니다.")
+    await _emit_progress(callback, 94, "rewrite", f"{round_str}재작성 라운드를 완료했습니다.")
     return state
 
 

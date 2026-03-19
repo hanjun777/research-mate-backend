@@ -32,6 +32,9 @@ class ReportListResponse(BaseModel):
     created_at: datetime
     status: str
     is_bookmarked: bool
+    progress: Optional[int] = None
+    phase: Optional[str] = None
+    status_message: Optional[str] = None
 
     class Config:
         from_attributes = True

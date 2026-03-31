@@ -9,6 +9,7 @@ class Report(Base):
     title = Column(String, nullable=False)
     content = Column(JSON, nullable=True) # Structured content (intro, background, etc.)
     status = Column(String, default="generating") # generating, completed, failed
+    report_type = Column(String, nullable=False, server_default="general") # general, premium
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     is_bookmarked = Column(Boolean, default=False)
     

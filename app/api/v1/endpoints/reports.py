@@ -163,6 +163,7 @@ async def generate_report(
         title=topic.title,
         status="generating",
         content={"__meta": {"progress": 3, "phase": "queued", "message": "생성 작업을 대기열에 등록했습니다."}},
+        report_type=request.report_type,
         topic_id=topic.topic_id,
         user_id=current_user.id,
     )
@@ -247,6 +248,7 @@ async def list_reports(
                 title=report.title,
                 created_at=report.created_at,
                 status=report.status,
+                report_type=report.report_type,
                 is_bookmarked=report.is_bookmarked,
                 subjects=[topic.subject] if topic and topic.subject else [],
                 progress=progress,

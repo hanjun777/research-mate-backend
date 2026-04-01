@@ -10,6 +10,10 @@ from vertexai.generative_models import GenerativeModel, GenerationConfig
 
 from app.core.config import settings
 
+# Fix gRPC DNS resolution issue for Vertex AI on some networks
+import os
+os.environ["GRPC_DNS_RESOLVER"] = "native"
+
 _vertex_initialized = False
 logger = logging.getLogger(__name__)
 
@@ -130,16 +134,23 @@ def _pick_provider_order() -> Tuple[str, ...]:
 
 
 def _safe_json_loads(text: str) -> Optional[Any]:
+    import re
     cleaned = text.strip()
-    if cleaned.startswith("```json"):
-        cleaned = cleaned[7:]
-    if cleaned.startswith("```"):
-        cleaned = cleaned[3:]
-    if cleaned.endswith("```"):
-        cleaned = cleaned[:-3]
+    # Attempt to extract JSON block if wrapped in markdown or extra text
+    match = re.search(r'```(?:json)?\s*([\s\S]*?)```', cleaned)
+    if match:
+        cleaned = match.group(1).strip()
+    else:
+        # Sometimes it just starts/ends with braces
+        start_idx = cleaned.find('{')
+        end_idx = cleaned.rfind('}')
+        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+            cleaned = cleaned[start_idx:end_idx+1]
+            
     try:
-        return json.loads(cleaned.strip())
-    except Exception:
+        return json.loads(cleaned)
+    except Exception as e:
+        logger.warning(f"Failed to parse JSON: {e}")
         return None
 
 
@@ -190,7 +201,7 @@ def _call_openai_chat(prompt: str, expect_json: bool = False) -> Optional[str]:
     )
 
     try:
-        with request.urlopen(req, timeout=45) as resp:
+        with request.urlopen(req, timeout=180) as resp:
             raw = resp.read().decode("utf-8")
             parsed = json.loads(raw)
             return parsed["choices"][0]["message"]["content"]
@@ -369,10 +380,11 @@ JSON 키:
 7) 실험, 시뮬레이션, 코드 실행, 데이터 수집을 실제로 수행하지 않았다면 수행한 것처럼 쓰지 말 것.
 8) 실제 실험을 쓰려면 계산 과정, 모델, 수학적 근거를 충분히 설명해야 하며, 그렇지 않으면 개념 설명과 활용 분석 중심으로 쓸 것.
 9) 활용 사례에서는 수학 개념이 실제 기술/공학/사회 현상에 어떻게 적용되는지 구체적으로 설명할 것.
-10) 수식, 정량적 분석 수치, 과학적 기호나 화학식 등이 포함되는 경우 **반드시 LaTeX 형식**($x^2$ 또는 $$x^2$$)을 사용하여 작성할 것. 수식이 텍스트로 깨지지 않도록 엄밀하게 작성해야 함.
+10) 모든 수식, 정량적 분석 수치, 과학적 기호, 화학식, 그리고 **아래첨자(subscript, 예: $A_x$, $H_2O$)**와 위첨자(superscript)가 포함되는 경우 **반드시 LaTeX 형식**($x^2$ 또는 $$x^2$$)을 사용하여 작성할 것. 수식이 일반 텍스트(`_` 등)로 깨지지 않도록 엄밀하게 작성해야 함.
 11) 마지막 섹션은 반드시 '생활기록부용 활동 요약'으로 하고, 5줄 내외로 학생이 배운 점과 심화 개념을 포함할 것.
 12) 추측성 표현 금지, 근거 중심.
 13) references는 최소 2개 항목.
+14) **매우 중요**: 모든 문구, 단어, 표현은 반드시 **오직 한국어(Korean)**로만 작성할 것. 한자(Chinese characters, 예를 들어 坚实的基础 등)나 다른 언어가 섞이지 않도록 완벽한 한국어로 작성할 것.
 """
 
     result = await generate_structured_json(prompt, fallback)
@@ -432,6 +444,8 @@ async def rewrite_report_with_feedback(
 2) 실제로 수행하지 않은 실험이나 시뮬레이션을 사실처럼 쓰지 말 것.
 3) 실험을 유지하려면 수학적 절차와 계산 근거를 구체적으로 보강할 것.
 4) 마지막 섹션은 반드시 '생활기록부용 활동 요약'으로 유지할 것.
+5) 모든 수식, 기호, 아래첨자 및 위첨자는 반드시 **LaTeX 형식**($x_i$, $x^2$ 등)을 엄격히 지켜서 재작성할 것.
+6) **매우 중요**: 모든 내용은 반드시 **오직 한국어(Korean)**로만 작성해야 하며, 어떠한 경우에도 한자(Chinese characters) 번역체나 외국어가 포함되어서는 안 됨.
 """
 
     result = await generate_structured_json(prompt, fallback)

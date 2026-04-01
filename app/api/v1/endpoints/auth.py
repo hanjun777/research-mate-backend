@@ -105,6 +105,7 @@ async def login_with_google(
             hashed_password=security.get_password_hash("social-login"),
             name=name,
             avatar_url=avatar_url,
+            credit_balance=1,  # 오픈채팅방 가입 이벤트로 프리미엄 1회권 증정
         )
         db.add(user)
         await db.commit()

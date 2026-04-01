@@ -51,17 +51,33 @@ async def generate_report_task(report_id: str, topic_id: str, custom_instruction
     async with AsyncSessionLocal() as db:
         try:
             async def update_progress(percent: int, phase: str, message: str) -> None:
+                from datetime import datetime
+                from sqlalchemy.orm.attributes import flag_modified
+                
                 progress_result = await db.execute(select(Report).where(Report.report_id == report_id))
                 progress_report = progress_result.scalars().first()
                 if not progress_report:
                     return
-                content = progress_report.content or {}
-                meta = content.get("__meta", {})
+                    
+                content = dict(progress_report.content or {})
+                meta = dict(content.get("__meta", {}))
                 meta["progress"] = percent
                 meta["phase"] = phase
                 meta["message"] = message
+                
+                # Maintain log history
+                logs = list(meta.get("logs", []))
+                logs.append({
+                    "message": message,
+                    "phase": phase,
+                    "timestamp": datetime.now().isoformat()
+                })
+                meta["logs"] = logs
+                
                 content["__meta"] = meta
                 progress_report.content = content
+                
+                flag_modified(progress_report, "content")
                 db.add(progress_report)
                 await db.commit()
 
@@ -147,6 +163,7 @@ async def generate_report(
         title=topic.title,
         status="generating",
         content={"__meta": {"progress": 3, "phase": "queued", "message": "생성 작업을 대기열에 등록했습니다."}},
+        report_type=request.report_type,
         topic_id=topic.topic_id,
         user_id=current_user.id,
     )
@@ -219,14 +236,24 @@ async def list_reports(
 
     response = []
     for report, topic in rows:
+        content = report.content or {}
+        meta = content.get("__meta", {}) if isinstance(content, dict) else {}
+        progress = meta.get("progress") if isinstance(meta.get("progress"), int) else None
+        phase = meta.get("phase") if isinstance(meta.get("phase"), str) else None
+        status_message = meta.get("message") if isinstance(meta.get("message"), str) else None
+        
         response.append(
             ReportListResponse(
                 report_id=report.report_id,
                 title=report.title,
                 created_at=report.created_at,
                 status=report.status,
+                report_type=report.report_type,
                 is_bookmarked=report.is_bookmarked,
                 subjects=[topic.subject] if topic and topic.subject else [],
+                progress=progress,
+                phase=phase,
+                status_message=status_message,
             )
         )
     return response

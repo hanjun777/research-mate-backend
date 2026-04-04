@@ -37,23 +37,22 @@ PAYMENT_PACKAGES = {
         name="기본 요금제",
         description="심화 탐구 보고서 생성 3회",
         credits=3,
-        amount=0,
-        original_amount=29000,
+        amount=19000,
+        original_amount=49000,
         badge="입문용",
-        claim_limit=3,
+        claim_limit=9999,
     ),
     "premium-review": PaymentPackage(
         code="premium-review",
         name="프리미엄 검수 요금제",
         description="프리미엄 검수 포함 보고서 생성 3회",
         credits=3,
-        amount=0,
-        original_amount=99000,
+        amount=59000,
+        original_amount=159000,
         badge="추천",
-        claim_limit=1,
+        claim_limit=9999,
     ),
 }
-
 
 def _generate_order_id(length: int = 20) -> str:
     alphabet = string.ascii_letters + string.digits + "-_"

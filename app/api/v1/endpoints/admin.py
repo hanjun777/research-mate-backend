@@ -11,6 +11,8 @@ from app.core.database import get_db
 from app.models.credit_transaction import CreditTransaction
 from app.models.payment import PaymentOrder
 from app.models.user import User
+from app.models.inquiry import Inquiry
+from app.schemas.inquiry import InquiryAnswer, InquiryResponse, InquiryMessageUpdate
 
 router = APIRouter()
 
@@ -136,3 +138,102 @@ async def adjust_user_credits(
         new_balance=new_balance,
         delta=body.delta,
     )
+
+
+from sqlalchemy.orm import selectinload
+from app.models.inquiry_message import InquiryMessage
+
+@router.get("/inquiries", response_model=list[InquiryResponse])
+async def list_admin_inquiries(
+    _admin: User = Depends(_require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """List all inquiries for admin review."""
+    result = await db.execute(
+        select(Inquiry)
+        .options(selectinload(Inquiry.messages))
+        .order_by(Inquiry.created_at.desc())
+    )
+    return result.scalars().all()
+
+
+@router.post("/inquiries/{inquiry_id}/answer", response_model=InquiryResponse)
+async def answer_inquiry(
+    inquiry_id: int,
+    body: InquiryAnswer,
+    _admin: User = Depends(_require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """Submit a reply to a user's inquiry."""
+    result = await db.execute(select(Inquiry).where(Inquiry.id == inquiry_id))
+    inquiry = result.scalars().first()
+    if not inquiry:
+        raise HTTPException(status_code=404, detail="Inquiry not found")
+
+    message = InquiryMessage(
+        inquiry_id=inquiry.id,
+        is_admin=True,
+        content=body.answer
+    )
+    db.add(message)
+    inquiry.status = "answered"
+    
+    # We update the original answer column too for simplicity in the basic UI fallback, 
+    # but the primary source of truth for chat is now messages.
+    inquiry.answer = body.answer 
+    
+    await db.commit()
+    
+    result = await db.execute(
+        select(Inquiry)
+        .options(selectinload(Inquiry.messages))
+        .where(Inquiry.id == inquiry_id)
+    )
+    return result.scalars().first()
+
+@router.put("/inquiries/{inquiry_id}/messages/{message_id}", response_model=InquiryResponse)
+async def update_inquiry_message(
+    inquiry_id: int,
+    message_id: int,
+    body: InquiryMessageUpdate,
+    _admin: User = Depends(_require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """Edit an existing admin message in an inquiry."""
+    result = await db.execute(
+        select(InquiryMessage)
+        .where(InquiryMessage.id == message_id, InquiryMessage.inquiry_id == inquiry_id)
+    )
+    message = result.scalars().first()
+    
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+        
+    if not message.is_admin:
+        raise HTTPException(status_code=403, detail="Can only edit admin messages")
+
+    message.content = body.content
+    await db.commit()
+
+    # Also update inquiry.answer if this is the first/only message (optional fallback)
+    inquiry_res = await db.execute(select(Inquiry).where(Inquiry.id == inquiry_id))
+    inquiry = inquiry_res.scalars().first()
+    if inquiry:
+        # Check if it's the very first admin message
+        first_admin_msg = await db.execute(
+            select(InquiryMessage)
+            .where(InquiryMessage.inquiry_id == inquiry_id, InquiryMessage.is_admin == True)
+            .order_by(InquiryMessage.created_at.asc())
+            .limit(1)
+        )
+        first_msg = first_admin_msg.scalars().first()
+        if first_msg and first_msg.id == message_id:
+            inquiry.answer = body.content
+            await db.commit()
+
+    result = await db.execute(
+        select(Inquiry)
+        .options(selectinload(Inquiry.messages))
+        .where(Inquiry.id == inquiry_id)
+    )
+    return result.scalars().first()

@@ -83,7 +83,62 @@ async def _ensure_payment_columns() -> None:
         await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_credit_transactions_transaction_type ON credit_transactions (transaction_type)"))
         await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_credit_transactions_payment_order_id_unique ON credit_transactions (payment_order_id) WHERE payment_order_id IS NOT NULL"))
         await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_credit_transactions_report_id_unique ON credit_transactions (report_id) WHERE report_id IS NOT NULL"))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS inquiries (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                category VARCHAR(50) NOT NULL,
+                email VARCHAR(255),
+                content TEXT NOT NULL,
+                answer TEXT,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_inquiries_user_id ON inquiries (user_id)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_inquiries_status ON inquiries (status)"))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS inquiry_messages (
+                id SERIAL PRIMARY KEY,
+                inquiry_id INTEGER NOT NULL REFERENCES inquiries(id) ON DELETE CASCADE,
+                is_admin BOOLEAN NOT NULL DEFAULT FALSE,
+                content TEXT NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_inquiry_messages_inquiry_id ON inquiry_messages (inquiry_id)"))
 
+async def _backfill_inquiry_messages() -> None:
+    async with AsyncSessionLocal() as session:
+        # Move existing answers from `inquiries` to `inquiry_messages`
+        # We only do this if the inquiry has an answer and there are no messages for it yet.
+        answered_inquiries = (
+            await session.execute(
+                text("""
+                    SELECT id, answer, updated_at
+                    FROM inquiries
+                    WHERE answer IS NOT NULL AND status = 'answered'
+                      AND NOT EXISTS (
+                        SELECT 1
+                        FROM inquiry_messages
+                        WHERE inquiry_id = inquiries.id
+                      )
+                """)
+            )
+        ).all()
+        
+        for iq_id, answer_text, updated_at in answered_inquiries:
+            await session.execute(
+                text("""
+                    INSERT INTO inquiry_messages (inquiry_id, is_admin, content, created_at)
+                    VALUES (:inquiry_id, true, :content, :created_at)
+                """),
+                {"inquiry_id": iq_id, "content": answer_text, "created_at": updated_at or datetime.now(timezone.utc)}
+            )
+        
+        if answered_inquiries:
+            await session.commit()
 
 async def _backfill_credit_transactions() -> None:
     async with AsyncSessionLocal() as session:
@@ -129,6 +184,7 @@ async def lifespan(_: FastAPI):
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     await _ensure_payment_columns()
+    await _backfill_inquiry_messages()
     await _backfill_credit_transactions()
     await _fail_stale_generating_reports()
     yield

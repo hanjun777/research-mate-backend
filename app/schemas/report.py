@@ -12,6 +12,8 @@ class ReportGenerateResponse(BaseModel):
     report_id: str
     status: str
     estimated_time: int
+    charged_package_code: Optional[str] = None
+    remaining_credit_balance: Optional[int] = None
 
 class ReportResponse(BaseModel):
     report_id: str

@@ -1,19 +1,23 @@
 from typing import Any, List
-
+ 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-
+ 
+from app.api import deps
 from app.core.database import get_db
+from app.models.report import Report
 from app.models.topic import Topic
+from app.models.user import User
 from app.schemas.topic import TopicRecommendRequest, TopicResponse
 from app.services import gemini_service
-
+ 
 router = APIRouter()
-
-
+ 
+ 
 @router.post("/recommend", response_model=List[TopicResponse])
 async def recommend_topics(
     request: TopicRecommendRequest,
+    current_user: User = Depends(deps.get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Any:
     """Return exactly one recommended topic and persist it."""
@@ -26,6 +30,8 @@ async def recommend_topics(
             career=request.career,
             difficulty=request.difficulty,
         )
+        duration = time.time() - start_time
+        logger.info(f"Gemini generation took {duration:.2f} seconds")
 
         if not generated_topics:
             raise HTTPException(status_code=500, detail="Failed to generate topic")
@@ -41,11 +47,37 @@ async def recommend_topics(
             related_subjects=topic_payload.get("related_subjects"),
             subject=request.subject,
             unit_large=request.unit_large,
-            user_id=None,
+            user_id=current_user.id,
         )
         db.add(topic)
+        await db.flush()
+        
+        # Create a report entry immediately
+        import uuid
+        report_id = str(uuid.uuid4())
+        report = Report(
+            report_id=report_id,
+            title=topic.title,
+            status="topic_generated",
+            content={
+                "reasoning": topic.reasoning,
+                "description": topic.description,
+                "tags": topic.tags,
+                "__meta": {
+                    "progress": 0,
+                    "phase": "topic_selected",
+                    "message": "주제가 선정되었습니다. 보고서 생성을 시작해 주세요."
+                }
+            },
+            report_type="general", # Default
+            topic_id=topic.topic_id,
+            user_id=current_user.id,
+        )
+        db.add(report)
+        
         await db.commit()
 
+        topic_payload["report_id"] = report_id
         return [topic_payload]
     except HTTPException:
         raise

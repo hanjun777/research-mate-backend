@@ -67,11 +67,13 @@ def serialize_report(report: Report) -> dict:
     status_message = meta.get("message") if isinstance(meta.get("message"), str) else None
     return {
         "report_id": report.report_id,
+        "topic_id": report.topic_id,
         "status": report.status,
         "title": report.title,
         "content": report.content,
         "created_at": report.created_at,
         "is_bookmarked": report.is_bookmarked,
+        "report_type": report.report_type,
         "progress": progress,
         "phase": phase,
         "status_message": status_message,
@@ -194,17 +196,41 @@ async def generate_report(
         package_label = "프리미엄 리포트" if request.report_type == "premium" else "일반 리포트"
         raise HTTPException(status_code=400, detail=f"{package_label}에 사용할 수 있는 크레딧이 없습니다.")
 
-    report_id = str(uuid.uuid4())
-    report = Report(
-        report_id=report_id,
-        title=topic.title,
-        status="generating",
-        content={"__meta": {"progress": 3, "phase": "queued", "message": "생성 작업을 대기열에 등록했습니다."}},
-        report_type=request.report_type,
-        topic_id=topic.topic_id,
-        user_id=current_user.id,
-    )
-    db.add(report)
+    # Check if a report already exists for this topic/user
+    report = None
+    if getattr(request, "report_id", None):
+        result = await db.execute(select(Report).where(Report.report_id == request.report_id))
+        report = result.scalars().first()
+    
+    if not report:
+        # Fallback to topic_id + user_id check
+        result = await db.execute(
+            select(Report).where(
+                Report.topic_id == request.topic_id,
+                Report.user_id == current_user.id,
+                Report.status == "topic_generated"
+            )
+        )
+        report = result.scalars().first()
+
+    if report:
+        report_id = report.report_id
+        report.status = "generating"
+        report.report_type = request.report_type
+        report.content = {"__meta": {"progress": 3, "phase": "queued", "message": "생성 작업을 대기열에 등록했습니다."}}
+    else:
+        report_id = str(uuid.uuid4())
+        report = Report(
+            report_id=report_id,
+            title=topic.title,
+            status="generating",
+            content={"__meta": {"progress": 3, "phase": "queued", "message": "생성 작업을 대기열에 등록했습니다."}},
+            report_type=request.report_type,
+            topic_id=topic.topic_id,
+            user_id=current_user.id,
+        )
+        db.add(report)
+
     db.add(
         CreditTransaction(
             user_id=current_user.id,

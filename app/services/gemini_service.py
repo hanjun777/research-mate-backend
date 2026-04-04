@@ -183,7 +183,7 @@ def _call_openai_chat(prompt: str, expect_json: bool = False) -> Optional[str]:
             {"role": "system", "content": "You are a precise academic assistant for Korean high school research reports."},
             {"role": "user", "content": prompt},
         ],
-        "temperature": 0.4,
+        "temperature": 0.7,
     }
 
     if expect_json:
@@ -253,7 +253,10 @@ async def _generate_with_vertex(prompt: str, expect_json: bool) -> Optional[str]
         if expect_json:
             response = await model.generate_content_async(
                 prompt,
-                generation_config=GenerationConfig(response_mime_type="application/json"),
+                generation_config=GenerationConfig(
+                    response_mime_type="application/json",
+                    temperature=0.7
+                ),
             )
         else:
             response = await model.generate_content_async(prompt)
@@ -321,6 +324,8 @@ async def generate_topics_from_gemini(
 - 소주제: {unit_small or '선택 안함'}
 - 진로/관심: {career or '미입력'}
 - 난이도: {diff_label} (숫자 대신 이 명칭을 사용하여 추천 이유와 설명을 작성할 것)
+
+각 요청마다 고유하고 창의적인 주제를 생성하세요. 동일한 입력값이 들어오더라도 매번 다른 관점이나 최신 트렌드를 반영하여 새로운 주제를 제안해야 합니다. 기존에 흔히 쓰이는 주제보다는 학생의 탐구 역량을 보여줄 수 있는 도전적인 주제를 우선순위로 두세요.
 
 반드시 JSON 객체로 출력:
 {{

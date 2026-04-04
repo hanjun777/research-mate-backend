@@ -18,6 +18,7 @@ class TopicResponse(BaseModel):
     tags: List[str]
     difficulty: str
     related_subjects: List[str]
+    report_id: Optional[str] = None
 
     class Config:
         from_attributes = True

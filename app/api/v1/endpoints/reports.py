@@ -36,11 +36,13 @@ def serialize_report(report: Report) -> dict:
     status_message = meta.get("message") if isinstance(meta.get("message"), str) else None
     return {
         "report_id": report.report_id,
+        "topic_id": report.topic_id,
         "status": report.status,
         "title": report.title,
         "content": report.content,
         "created_at": report.created_at,
         "is_bookmarked": report.is_bookmarked,
+        "report_type": report.report_type,
         "progress": progress,
         "phase": phase,
         "status_message": status_message,
@@ -157,17 +159,41 @@ async def generate_report(
     if not topic:
         raise HTTPException(status_code=404, detail="Topic not found")
 
-    report_id = str(uuid.uuid4())
-    report = Report(
-        report_id=report_id,
-        title=topic.title,
-        status="generating",
-        content={"__meta": {"progress": 3, "phase": "queued", "message": "생성 작업을 대기열에 등록했습니다."}},
-        report_type=request.report_type,
-        topic_id=topic.topic_id,
-        user_id=current_user.id,
-    )
-    db.add(report)
+    # Check if a report already exists for this topic/user
+    report = None
+    if request.report_id:
+        result = await db.execute(select(Report).where(Report.report_id == request.report_id))
+        report = result.scalars().first()
+    
+    if not report:
+        # Fallback to topic_id + user_id check
+        result = await db.execute(
+            select(Report).where(
+                Report.topic_id == request.topic_id,
+                Report.user_id == current_user.id,
+                Report.status == "topic_generated"
+            )
+        )
+        report = result.scalars().first()
+
+    if report:
+        report_id = report.report_id
+        report.status = "generating"
+        report.report_type = request.report_type
+        report.content = {"__meta": {"progress": 3, "phase": "queued", "message": "생성 작업을 대기열에 등록했습니다."}}
+    else:
+        report_id = str(uuid.uuid4())
+        report = Report(
+            report_id=report_id,
+            title=topic.title,
+            status="generating",
+            content={"__meta": {"progress": 3, "phase": "queued", "message": "생성 작업을 대기열에 등록했습니다."}},
+            report_type=request.report_type,
+            topic_id=topic.topic_id,
+            user_id=current_user.id,
+        )
+        db.add(report)
+    
     await db.commit()
 
     background_tasks.add_task(

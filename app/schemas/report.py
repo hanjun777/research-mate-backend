@@ -4,6 +4,7 @@ from datetime import datetime
 
 class ReportGenerateRequest(BaseModel):
     topic_id: str
+    report_id: Optional[str] = None
     report_type: str = "general"
     custom_instructions: Optional[str] = None
 
@@ -14,11 +15,13 @@ class ReportGenerateResponse(BaseModel):
 
 class ReportResponse(BaseModel):
     report_id: str
+    topic_id: str
     status: str
     title: str
     content: Optional[Dict[str, Any]] = None
     created_at: datetime
     is_bookmarked: bool
+    report_type: Optional[str] = None
     progress: Optional[int] = None
     phase: Optional[str] = None
     status_message: Optional[str] = None

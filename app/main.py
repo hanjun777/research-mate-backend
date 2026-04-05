@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy import text, update
 from app.core.config import settings
-from app.core.database import Base, engine, close_connectors, AsyncSessionLocal
+from app.core.database import Base, engine, AsyncSessionLocal
 from app.models.credit_transaction import CreditTransaction
 from app.models.payment import PaymentOrder
 from app.models.report import Report
@@ -133,7 +133,6 @@ async def lifespan(_: FastAPI):
     await _fail_stale_generating_reports()
     yield
     await engine.dispose()
-    await close_connectors()
 
 
 app = FastAPI(

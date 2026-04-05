@@ -17,11 +17,6 @@ class Settings(BaseSettings):
     
     # Database
     DATABASE_URL: Optional[str] = None
-    DB_USER: Optional[str] = None
-    DB_PASS: Optional[str] = None
-    DB_NAME: Optional[str] = None
-    INSTANCE_CONNECTION_NAME: Optional[str] = None
-    USE_CLOUD_SQL_IN_DEV: bool = False
     
     # Gemini (Vertex AI)
     GOOGLE_CLOUD_PROJECT: Optional[str] = None

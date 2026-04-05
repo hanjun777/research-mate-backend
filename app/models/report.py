@@ -18,3 +18,8 @@ class Report(Base):
     
     # Link to User
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # Added columns for mentoring and archival
+    mentor_comment = Column(Text, nullable=True)
+    original_content = Column(JSON, nullable=True)
+    mentor_reviewed_at = Column(DateTime(timezone=True), nullable=True)

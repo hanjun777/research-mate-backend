@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.core.database import Base
 
 class User(Base):
@@ -13,3 +14,5 @@ class User(Base):
     credit_balance = Column(Integer, nullable=False, default=0)
     customer_key = Column(String(50), unique=True, index=True, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    inquiries = relationship("Inquiry", back_populates="user")

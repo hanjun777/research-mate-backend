@@ -1,3 +1,5 @@
+import time
+import logging
 from typing import Any, List
  
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,6 +14,7 @@ from app.schemas.topic import TopicRecommendRequest, TopicResponse
 from app.services import gemini_service
  
 router = APIRouter()
+logger = logging.getLogger(__name__)
  
  
 @router.post("/recommend", response_model=List[TopicResponse])
@@ -21,6 +24,7 @@ async def recommend_topics(
     db: AsyncSession = Depends(get_db),
 ) -> Any:
     """Return exactly one recommended topic and persist it."""
+    start_time = time.time()
     try:
         generated_topics = await gemini_service.generate_topics_from_gemini(
             subject=request.subject,
